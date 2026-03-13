@@ -1,0 +1,123 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import http from "node:http";
+import { createProxyServer } from "../src/proxy.js";
+
+function listen(server, host = "127.0.0.1") {
+  return new Promise((resolve) => {
+    server.listen(0, host, () => {
+      const address = server.address();
+      resolve(address);
+    });
+  });
+}
+
+function close(server) {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+test("proxy forwards request with bearer token and strips api-key", async () => {
+  let captured = null;
+
+  const upstream = http.createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) {
+      body += chunk;
+    }
+
+    captured = {
+      url: req.url,
+      authorization: req.headers.authorization,
+      apiKey: req.headers["api-key"],
+      body
+    };
+
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ ok: true }));
+  });
+
+  const upstreamAddr = await listen(upstream);
+
+  const proxy = createProxyServer({
+    config: {
+      upstreamBaseUrl: `http://127.0.0.1:${upstreamAddr.port}/openai/v1`,
+      upstreamHeadersTimeoutMs: 5_000,
+      upstreamBodyTimeoutMs: 5_000
+    },
+    tokenManager: {
+      async getAccessToken() {
+        return "token-from-proxy";
+      },
+      async checkReady() {
+        return { ok: true };
+      }
+    },
+    logger: { info() {}, error() {} }
+  });
+
+  const proxyAddr = await listen(proxy);
+
+  const response = await fetch(`http://127.0.0.1:${proxyAddr.port}/openai/v1/responses`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer user-token",
+      "api-key": "secret"
+    },
+    body: JSON.stringify({ model: "gpt-5.4", input: "ping" })
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+
+  assert.equal(captured.url, "/openai/v1/responses");
+  assert.equal(captured.authorization, "Bearer token-from-proxy");
+  assert.equal(captured.apiKey, undefined);
+  assert.match(captured.body, /\"model\":\"gpt-5.4\"/);
+
+  await close(proxy);
+  await close(upstream);
+});
+
+test("readiness endpoints return expected statuses", async () => {
+  const proxy = createProxyServer({
+    config: {
+      upstreamBaseUrl: "http://127.0.0.1:1/openai/v1",
+      upstreamHeadersTimeoutMs: 5_000,
+      upstreamBodyTimeoutMs: 5_000
+    },
+    tokenManager: {
+      async getAccessToken() {
+        return "token";
+      },
+      async checkReady() {
+        return { ok: true, hasToken: true };
+      }
+    },
+    logger: { info() {}, error() {} }
+  });
+
+  const proxyAddr = await listen(proxy);
+
+  const health = await fetch(`http://127.0.0.1:${proxyAddr.port}/healthz`);
+  assert.equal(health.status, 200);
+  assert.deepEqual(await health.json(), { ok: true });
+
+  const ready = await fetch(`http://127.0.0.1:${proxyAddr.port}/readyz`);
+  assert.equal(ready.status, 200);
+  assert.deepEqual(await ready.json(), { ok: true, hasToken: true });
+
+  const miss = await fetch(`http://127.0.0.1:${proxyAddr.port}/unknown`);
+  assert.equal(miss.status, 404);
+
+  await close(proxy);
+});

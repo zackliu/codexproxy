@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Runtime logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test and coverage output
+coverage/
+.nyc_output/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Build/release artifacts
+dist/
+build/
+*.tgz
+*.tar.gz
+*.sha256
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Temporary files
+*.tmp
+*.swp
+
+# Local/internal docs not for remote repo
+codexproxy.md
