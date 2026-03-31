@@ -24,6 +24,35 @@ function close(server) {
   });
 }
 
+function requestAndCaptureClose(url) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, (res) => {
+      const chunks = [];
+      let aborted = false;
+
+      res.on("data", (chunk) => {
+        chunks.push(Buffer.from(chunk));
+      });
+
+      res.on("aborted", () => {
+        aborted = true;
+      });
+
+      res.on("error", reject);
+      res.on("close", () => {
+        resolve({
+          statusCode: res.statusCode,
+          body: Buffer.concat(chunks).toString("utf8"),
+          aborted,
+          complete: res.complete
+        });
+      });
+    });
+
+    req.on("error", reject);
+  });
+}
+
 test("proxy forwards request with bearer token and strips api-key", async () => {
   let captured = null;
 
@@ -118,6 +147,62 @@ test("readiness endpoints return expected statuses", async () => {
 
   const miss = await fetch(`http://127.0.0.1:${proxyAddr.port}/unknown`);
   assert.equal(miss.status, 404);
+
+  await close(proxy);
+});
+
+test("streaming upstream failure after headers does not crash the proxy", async () => {
+  const loggerErrors = [];
+
+  const proxy = createProxyServer({
+    config: {
+      upstreamBaseUrl: "http://127.0.0.1:1/openai/v1",
+      upstreamHeadersTimeoutMs: 5_000,
+      upstreamBodyTimeoutMs: 5_000
+    },
+    tokenManager: {
+      async getAccessToken() {
+        return "token";
+      },
+      async checkReady() {
+        return { ok: true };
+      }
+    },
+    logger: {
+      info() {},
+      error(meta, message) {
+        loggerErrors.push({ meta, message });
+      }
+    },
+    async requestImpl() {
+      return {
+        statusCode: 200,
+        headers: {
+          "content-type": "text/plain"
+        },
+        body: (async function* () {
+          yield "partial response";
+          throw new Error("stream exploded");
+        })()
+      };
+    }
+  });
+
+  const proxyAddr = await listen(proxy);
+
+  const partial = await requestAndCaptureClose(`http://127.0.0.1:${proxyAddr.port}/openai/v1/responses`);
+  assert.equal(partial.statusCode, 200);
+  assert.equal(partial.body, "partial response");
+  assert.equal(partial.complete, true);
+  assert.equal(partial.aborted, false);
+
+  const health = await fetch(`http://127.0.0.1:${proxyAddr.port}/healthz`);
+  assert.equal(health.status, 200);
+  assert.deepEqual(await health.json(), { ok: true });
+
+  assert.equal(loggerErrors.length, 1);
+  assert.equal(loggerErrors[0].message, "Proxy request failed after response started");
+  assert.equal(loggerErrors[0].meta.error, "stream exploded");
 
   await close(proxy);
 });

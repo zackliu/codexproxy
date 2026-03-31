@@ -70,6 +70,20 @@ export function createProxyServer({ config, tokenManager, logger = console, requ
 
       logger.info?.({ method: req.method, path: req.url, statusCode: upstream.statusCode }, "Upstream request completed");
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      if (res.headersSent || res.writableEnded) {
+        logger.error?.(
+          { method: req.method, path: req.url, error: errorMessage },
+          "Proxy request failed after response started"
+        );
+
+        if (!res.writableEnded && !res.destroyed) {
+          res.end();
+        }
+        return;
+      }
+
       if (error instanceof CredentialUnavailableError) {
         writeJson(res, 503, {
           error: error.code,
@@ -78,9 +92,10 @@ export function createProxyServer({ config, tokenManager, logger = console, requ
         return;
       }
 
+      logger.error?.({ method: req.method, path: req.url, error: errorMessage }, "Proxy request failed");
       writeJson(res, 502, {
         error: "proxy_error",
-        message: error instanceof Error ? error.message : String(error)
+        message: errorMessage
       });
     }
   });
