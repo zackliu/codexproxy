@@ -30,7 +30,9 @@ server.listen(config.listenPort, config.listenHost, () => {
       listenHost: config.listenHost,
       listenPort: config.listenPort,
       upstreamBaseUrl: config.upstreamBaseUrl,
-      scope: config.scope
+      scope: config.scope,
+      upstreamHeadersTimeoutMs: config.upstreamHeadersTimeoutMs,
+      upstreamBodyTimeoutMs: config.upstreamBodyTimeoutMs
     },
     "Codex proxy listening"
   );

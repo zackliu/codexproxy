@@ -74,6 +74,10 @@ sudo editor /etc/default/codexproxy
 - `UPSTREAM_AOAI_BASE_URL`：改成新的 Azure OpenAI endpoint（必须带 `/openai/v1`）
 - `AZURE_OPENAI_SCOPE`：默认保持 `https://cognitiveservices.azure.com/.default`
 - `LISTEN_HOST` / `LISTEN_PORT`：本地监听地址和端口
+- `UPSTREAM_HEADERS_TIMEOUT_MS`：等待上游响应头，默认 `600000`（10 分钟）
+- `UPSTREAM_BODY_TIMEOUT_MS`：上游响应体两次数据之间的空闲超时，默认 `1800000`（30 分钟），不是整个生成过程的总时限
+
+Codex 客户端在 `[model_providers.azure]` 中设置 `stream_idle_timeout_ms = 1800000`，可将流式空闲超时从默认 5 分钟调到 30 分钟。修改后在新会话中生效；已有进程如未重新加载配置，需要重启客户端。
 
 示例：
 

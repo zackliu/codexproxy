@@ -17,8 +17,8 @@ Environment=LISTEN_PORT=17777
 Environment=UPSTREAM_AOAI_BASE_URL=https://pmagent2.openai.azure.com/openai/v1
 Environment=AZURE_OPENAI_SCOPE=https://cognitiveservices.azure.com/.default
 Environment=TOKEN_REFRESH_BUFFER_MS=300000
-Environment=UPSTREAM_HEADERS_TIMEOUT_MS=30000
-Environment=UPSTREAM_BODY_TIMEOUT_MS=600000
+Environment=UPSTREAM_HEADERS_TIMEOUT_MS=600000
+Environment=UPSTREAM_BODY_TIMEOUT_MS=1800000
 EnvironmentFile=-/etc/default/codexproxy
 
 ExecStartPre=/bin/bash -lc 'test -x "${NODE_BIN}"'

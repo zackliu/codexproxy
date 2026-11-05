@@ -4,8 +4,8 @@ const DEFAULTS = {
   UPSTREAM_AOAI_BASE_URL: "https://pmagent2.openai.azure.com/openai/v1",
   AZURE_OPENAI_SCOPE: "https://cognitiveservices.azure.com/.default",
   TOKEN_REFRESH_BUFFER_MS: String(5 * 60 * 1000),
-  UPSTREAM_HEADERS_TIMEOUT_MS: String(30 * 1000),
-  UPSTREAM_BODY_TIMEOUT_MS: String(10 * 60 * 1000)
+  UPSTREAM_HEADERS_TIMEOUT_MS: String(10 * 60 * 1000),
+  UPSTREAM_BODY_TIMEOUT_MS: String(30 * 60 * 1000)
 };
 
 function parsePositiveInt(env, name, fallback) {
