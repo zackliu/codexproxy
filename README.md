@@ -127,6 +127,13 @@ journalctl -u codexproxy.service --since "10 min ago" --no-pager
 journalctl -u codexproxy.service --since "5 min ago" --no-pager
 ```
 
+### 请求失败如何传给客户端
+
+- 响应尚未发出时，上游连接或读取失败返回完整的 HTTP `502` JSON；凭据不可用返回 HTTP `503` JSON。本地错误响应会清除上游响应的长度、压缩等响应头。
+- 响应已经开始后，上游断流或读取超时会异常关闭下游连接。此时已发送的 HTTP 状态码保持原值，客户端必须读取完整响应体；Node HTTP 客户端会收到响应中断，`fetch` 的响应体读取会失败。
+- 上游完整返回的 HTTP 错误状态、响应头、响应体，以及 SSE `response.failed` 等协议事件，按原样传给客户端。代理只透传协议事件，传输故障由连接异常表达。
+- 代理保持现有超时配置，并由客户端决定失败后的提示或重试；代理自身每次只转发一次请求。
+
 ## 6. 常见问题
 
 ### Q1: `status` 里提示找不到 Node

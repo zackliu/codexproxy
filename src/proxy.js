@@ -13,6 +13,10 @@ function normalizeUpstreamHeaders(incomingHeaders, token) {
 }
 
 function writeJson(res, statusCode, body) {
+  // Local errors must not inherit upstream body framing or compression.
+  for (const headerName of res.getHeaderNames()) {
+    res.removeHeader(headerName);
+  }
   res.statusCode = statusCode;
   res.setHeader("content-type", "application/json");
   res.end(JSON.stringify(body));
@@ -79,7 +83,7 @@ export function createProxyServer({ config, tokenManager, logger = console, requ
         );
 
         if (!res.writableEnded && !res.destroyed) {
-          res.end();
+          res.destroy(error instanceof Error ? error : new Error(errorMessage));
         }
         return;
       }
